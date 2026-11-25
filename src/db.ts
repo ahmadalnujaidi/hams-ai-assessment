@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import pg from 'pg';
 
@@ -11,13 +12,23 @@ export function createPool(connectionString: string): pg.Pool {
 /**
  * Apply schema.sql. Both instances boot at the same time, so a session advisory lock
  * makes sure only one of them runs the DDL at a time.
+ *
+ * The DDL runs only when schema.sql has changed. `CREATE INDEX IF NOT EXISTS` takes a table
+ * lock even when the index is already there, so running it on every boot would make a
+ * restarting instance wait for, and block, the traffic the other instance is serving.
  */
 export async function migrate(pool: pg.Pool): Promise<void> {
   const schema = readFileSync(new URL('./schema.sql', import.meta.url), 'utf8');
+  const version = createHash('sha256').update(schema).digest('hex');
   const client = await pool.connect();
   try {
     await client.query('SELECT pg_advisory_lock(7, 1)');
-    await client.query(schema);
+    await client.query('CREATE TABLE IF NOT EXISTS schema_version (hash text PRIMARY KEY)');
+    const applied = await client.query('SELECT 1 FROM schema_version WHERE hash = $1', [version]);
+    if (applied.rowCount === 0) {
+      await client.query(schema);
+      await client.query('INSERT INTO schema_version (hash) VALUES ($1)', [version]);
+    }
   } finally {
     await client.query('SELECT pg_advisory_unlock(7, 1)').catch(() => {});
     client.release();

@@ -58,6 +58,8 @@ async function http(method: 'GET' | 'POST', path: string, body?: unknown): Promi
         headers: body === undefined ? undefined : { 'content-type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
+      // 503 is an instance that is shutting down: the same as unreachable, so try again.
+      if (res.status === 503) throw new Error('instance is shutting down');
       if (res.status >= 500) serverErrors++;
       return { status: res.status, body: await res.json() };
     } catch (err) {
