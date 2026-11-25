@@ -27,7 +27,7 @@ Postgres holds all state. The service instances hold none: no queue, timer or ca
 | `busy` | call ends | `available`, idle clock restarts |
 | `away`, `available`, `offered` | log out | `offline` |
 
-Anything else is refused with `409`. A repeated request whose effect already happened returns `200` and changes nothing.
+Anything else is refused with `409`. A repeated new call, accept, end or hang-up returns `200` and changes nothing.
 
 **Routing rule:** take the waiting call with the highest priority, oldest first among equals, and offer it to the available agent with that skill who has been idle the longest. A call that no available agent can answer is skipped, so it does not block the calls behind it.
 
