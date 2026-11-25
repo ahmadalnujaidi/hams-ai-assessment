@@ -31,12 +31,13 @@ const callIdBody = {
 export function buildApi(engine: Engine): FastifyInstance {
   const app = Fastify();
 
-  app.setErrorHandler((err: Error & { validation?: unknown }, _req, reply) => {
+  app.setErrorHandler((err: Error & { statusCode?: number }, _req, reply) => {
     if (err instanceof RoutingError) {
       return reply.code(err.status).send({ error: err.code, message: err.message });
     }
-    if (err.validation) {
-      return reply.code(400).send({ error: 'bad_request', message: err.message });
+    // The framework's own client errors: a body that fails validation, malformed JSON, and so on.
+    if (err.statusCode && err.statusCode >= 400 && err.statusCode < 500) {
+      return reply.code(err.statusCode).send({ error: 'bad_request', message: err.message });
     }
     console.error(err);
     return reply.code(500).send({ error: 'internal', message: 'Internal error' });
